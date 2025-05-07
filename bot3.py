@@ -1,51 +1,48 @@
 import os
 from telegram import Update
-from telegram.ext import Application, CommandHandler, ContextTypes
+from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 import yt_dlp
-
-# تحميل التوكن من البيئة
 from dotenv import load_dotenv
 
-load_dotenv()  # تحميل محتويات .env
-
-# الحصول على التوكن
+# تحميل التوكن من .env
+load_dotenv()
 BOT_TOKEN = os.getenv('BOT_TOKEN')
 
-# إعداد البوت
-async def start(update: Update, context):
-    await update.message.reply_text("مرحبًا! أنا بوت التحميل. أرسل لي رابط الفيديو لتحميله.")
+# دالة start
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("مرحبًا! أرسل لي رابط فيديو من YouTube أو TikTok عشان أحمله لك.")
 
-# دالة لتحميل الفيديو
-async def download_video(update: Update, context):
+# دالة تحميل الفيديو
+async def download_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = update.message.text
     await update.message.reply_text(f"جاري تحميل الفيديو من: {url}")
 
     ydl_opts = {
-        'outtmpl': 'downloads/%(title)s.%(ext)s',  # حفظ الفيديو في مجلد 'downloads'
+        'outtmpl': '%(title)s.%(ext)s',
+        'format': 'bestvideo+bestaudio/best',
     }
 
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info_dict = ydl.extract_info(url, download=True)
-        video_url = info_dict.get('url', None)
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            file_path = ydl.prepare_filename(info)
+        
+        # إرسال الملف بعد التحميل
+        with open(file_path, 'rb') as video:
+            await update.message.reply_video(video)
+        
+        # حذف الملف بعد الإرسال
+        os.remove(file_path)
 
-    # إرسال الفيديو بعد تحميله
-    await update.message.reply_video(video_url)
+    except Exception as e:
+        await update.message.reply_text(f"حدث خطأ أثناء التحميل: {e}")
 
+# تشغيل البوت
 def main():
-    # إعداد التطبيق
     application = Application.builder().token(BOT_TOKEN).build()
-
-    # إضافة أمر start
     application.add_handler(CommandHandler("start", start))
-
-    # إضافة معالجة للرسائل
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, download_video))
-
-    # تحديد المنفذ (للتأكد من أنه يعمل في بيئة Render)
-    port = os.getenv("PORT", 8080)
-
-    # بدء البوت
-    application.run_polling(port=port)
+    application.run_polling()
 
 if __name__ == '__main__':
     main()
