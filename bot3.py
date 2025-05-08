@@ -1,30 +1,28 @@
-# اضافة التعديلات التالية على الكود:
-from telegram.ext import Updater, Dispatcher, CommandHandler, MessageHandler, filters
+import os
 from telegram import Update
-import logging
+from telegram.ext import Application, CommandHandler, ContextTypes
 
-# إضافة معالج الأخطاء
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                    level=logging.INFO)
-logger = logging.getLogger(__name__)
+# تحميل التوكن من البيئة
+from dotenv import load_dotenv
 
-def start(update: Update, context):
-    update.message.reply_text("مرحبًا! أرسل لي رابط الفيديو لتحميله.")
+load_dotenv()  # تحميل محتويات .env
 
-def download_video(update: Update, context):
-    url = update.message.text.strip()
-    # الكود الخاص بمعالجة تحميل الفيديو هنا
-    update.message.reply_text("جاري تحميل الفيديو...")
+# الحصول على التوكن
+BOT_TOKEN = os.getenv('BOT_TOKEN')
+
+# إعداد البوت
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("مرحبًا! أنا بوت التحميل.")
 
 def main():
+    # إعداد التطبيق
     application = Application.builder().token(BOT_TOKEN).build()
 
-    # إضافة معالجات الأوامر
+    # إضافة أمر start
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, download_video))
 
-    # تحديد webhook
-    application.run_webhook(listen="0.0.0.0", port=8080, url_path=BOT_TOKEN)
-    
+    # بدء البوت
+    application.run_polling()
+
 if __name__ == '__main__':
     main()
