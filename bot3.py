@@ -9,8 +9,8 @@ load_dotenv()
 
 BOT_TOKEN = os.getenv('BOT_TOKEN')
 
-# إنشاء مجلد downloads لو ما كان موجود
-if not os.path.exists('downloads'):
+# التأكد من وجود مجلد downloads
+if not os.path.isdir('downloads'):
     os.makedirs('downloads')
 
 async def start(update: Update, context):
@@ -37,13 +37,9 @@ async def download_video(update: Update, context):
 def main():
     application = Application.builder().token(BOT_TOKEN).build()
 
-    # إضافة معالج أمر start
     application.add_handler(CommandHandler("start", start))
-
-    # إضافة معالج للرسائل
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, download_video))
 
-    # تشغيل البوت بدون منفذ لأننا نستخدم polling
     application.run_polling()
 
 if __name__ == '__main__':
