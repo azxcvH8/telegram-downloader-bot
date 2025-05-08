@@ -2,15 +2,15 @@ import os
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 import yt_dlp
-from dotenv import load_dotenv
 
 # تحميل التوكن من البيئة
+from dotenv import load_dotenv
 load_dotenv()
 
 BOT_TOKEN = os.getenv('BOT_TOKEN')
 
-# إنشاء مجلد downloads لو ما كان موجود
-if not os.path.isdir('downloads'):  # التأكد من أنه مجلد
+# إنشاء مجلد downloads لو ما كان موجود أو إذا كان خطأ
+if not os.path.isdir('downloads'):
     os.makedirs('downloads')
 
 async def start(update: Update, context):
@@ -25,7 +25,6 @@ async def download_video(update: Update, context):
     }
 
     try:
-        # حاول تحميل الفيديو
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info_dict = ydl.extract_info(url, download=True)
             video_path = ydl.prepare_filename(info_dict)
@@ -33,7 +32,6 @@ async def download_video(update: Update, context):
         with open(video_path, 'rb') as video_file:
             await update.message.reply_video(video_file)
     except Exception as e:
-        # إذا حدث أي خطأ، سيتم إرساله إلى المستخدم
         await update.message.reply_text(f"حدث خطأ أثناء التحميل: {e}")
 
 def main():
@@ -48,11 +46,8 @@ def main():
     # تحديد المنفذ (للتأكد من أنه يعمل في بيئة Render أو بيئة مشابهة)
     port = os.getenv("PORT", 8080)
 
-    try:
-        # بدء البوت مع تحديد المنفذ
-        application.run_polling(port=port)
-    except Exception as e:
-        print(f"حدث خطأ أثناء تشغيل البوت: {e}")
+    # بدء البوت مع تحديد المنفذ
+    application.run_polling(port=port)
 
 if __name__ == '__main__':
     main()
