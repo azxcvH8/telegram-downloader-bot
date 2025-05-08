@@ -1,43 +1,30 @@
-import os
+# اضافة التعديلات التالية على الكود:
+from telegram.ext import Updater, Dispatcher, CommandHandler, MessageHandler, filters
 from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters
-import yt_dlp
+import logging
 
-# تحميل التوكن من البيئة
-from dotenv import load_dotenv
-load_dotenv()
+# إضافة معالج الأخطاء
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                    level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-BOT_TOKEN = os.getenv('BOT_TOKEN')
+def start(update: Update, context):
+    update.message.reply_text("مرحبًا! أرسل لي رابط الفيديو لتحميله.")
 
-async def start(update: Update, context):
-    await update.message.reply_text("مرحبًا! أنا بوت التحميل. أرسل لي رابط الفيديو لتحميله.")
-
-async def download_video(update: Update, context):
-    url = update.message.text.strip()  # ناخذ الرابط فقط ونشيل المسافات الزايدة
-    await update.message.reply_text(f"جاري تحميل الفيديو...")
-
-    ydl_opts = {
-        'outtmpl': 'downloads/%(title)s.%(ext)s',  # مجلد التخزين
-    }
-
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info_dict = ydl.extract_info(url, download=True)
-            video_path = ydl.prepare_filename(info_dict)
-        
-        # نرسل الملف نفسه
-        with open(video_path, 'rb') as video_file:
-            await update.message.reply_video(video_file)
-    except Exception as e:
-        await update.message.reply_text(f"حدث خطأ أثناء التحميل: {e}")
+def download_video(update: Update, context):
+    url = update.message.text.strip()
+    # الكود الخاص بمعالجة تحميل الفيديو هنا
+    update.message.reply_text("جاري تحميل الفيديو...")
 
 def main():
     application = Application.builder().token(BOT_TOKEN).build()
 
+    # إضافة معالجات الأوامر
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, download_video))
 
-    application.run_polling()
-
+    # تحديد webhook
+    application.run_webhook(listen="0.0.0.0", port=8080, url_path=BOT_TOKEN)
+    
 if __name__ == '__main__':
     main()
