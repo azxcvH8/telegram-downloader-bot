@@ -37,12 +37,16 @@ async def download_video(update: Update, context):
 def main():
     application = Application.builder().token(BOT_TOKEN).build()
 
+    # إضافة معالج أمر start
     application.add_handler(CommandHandler("start", start))
+
+    # إضافة معالج للرسائل
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, download_video))
 
-    # تحديد المنفذ الذي يجب أن يعمل عليه البوت في بيئة Render
-    port = int(os.getenv("PORT", 8080))
+    # تحديد المنفذ (للتأكد من أنه يعمل في بيئة Render أو بيئة مشابهة)
+    port = os.getenv("PORT", 8080)
 
+    # بدء البوت مع تحديد المنفذ
     application.run_polling(port=port)
 
 if __name__ == '__main__':
