@@ -43,11 +43,8 @@ def main():
     # إضافة معالج للرسائل
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, download_video))
 
-    # تحديد المنفذ (للتأكد من أنه يعمل في بيئة Render أو بيئة مشابهة)
-    port = os.getenv("PORT", 8080)
-
-    # بدء البوت مع تحديد المنفذ
-    application.run_polling(port=port)
+    # تشغيل البوت بدون منفذ لأننا نستخدم polling
+    application.run_polling()
 
 if __name__ == '__main__':
     main()
