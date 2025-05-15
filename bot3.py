@@ -9,8 +9,8 @@ load_dotenv()
 
 BOT_TOKEN = os.getenv('BOT_TOKEN')
 
-# إنشاء مجلد downloads لو ما كان موجود أو إذا كان خطأ
-if not os.path.isdir('downloads'):
+# إنشاء مجلد downloads إذا ما كان موجود
+if not os.path.exists('downloads'):
     os.makedirs('downloads')
 
 async def start(update: Update, context):
@@ -22,6 +22,8 @@ async def download_video(update: Update, context):
 
     ydl_opts = {
         'outtmpl': 'downloads/%(title)s.%(ext)s',
+        'format': 'bestvideo+bestaudio/best',
+        'merge_output_format': 'mp4'
     }
 
     try:
@@ -30,24 +32,17 @@ async def download_video(update: Update, context):
             video_path = ydl.prepare_filename(info_dict)
 
         with open(video_path, 'rb') as video_file:
-            await update.message.reply_video(video_file)
+            await update.message.reply_document(video_file)  # نستخدم document لتفادي مشاكل الحجم
     except Exception as e:
         await update.message.reply_text(f"حدث خطأ أثناء التحميل: {e}")
 
 def main():
     application = Application.builder().token(BOT_TOKEN).build()
 
-    # إضافة معالج أمر start
     application.add_handler(CommandHandler("start", start))
-
-    # إضافة معالج للرسائل
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, download_video))
 
-    # تحديد المنفذ (للتأكد من أنه يعمل في بيئة Render أو بيئة مشابهة)
-    port = os.getenv("PORT", 8080)
-
-    # بدء البوت مع تحديد المنفذ
-    application.run_polling(port=port)
+    application.run_polling()  # حذفنا port
 
 if __name__ == '__main__':
     main()
