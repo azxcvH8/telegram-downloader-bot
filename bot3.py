@@ -1,32 +1,61 @@
 import os
-import threading
-import http.server
-import socketserver
-
+import re
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 import yt_dlp
-
 from dotenv import load_dotenv
-load_dotenv()
 
+load_dotenv()
 BOT_TOKEN = os.getenv('BOT_TOKEN')
 
-# إنشاء مجلد downloads إذا ما كان موجود
-if not os.path.exists('downloads'):
+# تأكد من وجود مجلد downloads
+if not os.path.isdir('downloads'):
     os.makedirs('downloads')
 
-async def start(update: Update, context):
-    await update.message.reply_text("مرحبًا! أنا بوت التحميل. أرسل لي رابط الفيديو لتحميله.")
+# تحديد نوع المنصة من الرابط
+def get_platform(url):
+    if "tiktok.com" in url:
+        return "TikTok"
+    elif "youtube.com" in url or "youtu.be" in url:
+        return "YouTube"
+    elif "twitter.com" in url or "x.com" in url:
+        return "Twitter"
+    elif "instagram.com" in url:
+        return "Instagram"
+    else:
+        return "رابط غير معروف"
 
+# أمر /start
+async def start(update: Update, context):
+    await update.message.reply_text(
+        "مرحبًا! أنا بوت تحميل الفيديوهات.\n"
+        "أرسل لي رابط من YouTube، TikTok، Twitter أو Instagram لتحميله.\n"
+        "استخدم /help لمزيد من المعلومات."
+    )
+
+# أمر /help
+async def help_command(update: Update, context):
+    await update.message.reply_text(
+        "البوت يدعم حالياً:\n"
+        "- YouTube (بعض المقاطع تحتاج تسجيل دخول)\n"
+        "- TikTok\n"
+        "- Twitter / X\n"
+        "- Instagram\n\n"
+        "أرسل الرابط فقط، والبوت يحمله لك."
+    )
+
+# تحميل الفيديو
 async def download_video(update: Update, context):
     url = update.message.text.strip()
-    await update.message.reply_text("جاري تحميل الفيديو...")
+    platform = get_platform(url)
+
+    await update.message.reply_text(f"جاري تحميل الفيديو من {platform}...")
 
     ydl_opts = {
         'outtmpl': 'downloads/%(title)s.%(ext)s',
         'format': 'bestvideo+bestaudio/best',
-        'merge_output_format': 'mp4'
+        'merge_output_format': 'mp4',
+        'noplaylist': True
     }
 
     try:
@@ -34,29 +63,21 @@ async def download_video(update: Update, context):
             info_dict = ydl.extract_info(url, download=True)
             video_path = ydl.prepare_filename(info_dict)
 
+        # رفع كملف document عشان مقاطع كثيرة تكون كبيرة
         with open(video_path, 'rb') as video_file:
             await update.message.reply_document(video_file)
     except Exception as e:
-        await update.message.reply_text(f"حدث خطأ أثناء التحميل: {e}")
+        await update.message.reply_text(f"حدث خطأ أثناء التحميل:\n{e}")
 
-# سيرفر وهمي لفتح منفذ يخلي Render ما يوقف الخدمة
-def start_dummy_server():
-    port = int(os.environ.get("PORT", 8080))
-    Handler = http.server.SimpleHTTPRequestHandler
-    with socketserver.TCPServer(("", port), Handler) as httpd:
-        print(f"Dummy server running on port {port}")
-        httpd.serve_forever()
-
+# تشغيل البوت
 def main():
-    # تشغيل السيرفر الوهمي في الخلفية
-    threading.Thread(target=start_dummy_server, daemon=True).start()
+    app = Application.builder().token(BOT_TOKEN).build()
 
-    # تشغيل بوت التليجرام
-    application = Application.builder().token(BOT_TOKEN).build()
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, download_video))
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, download_video))
 
-    application.run_polling()
+    app.run_polling()
 
 if __name__ == '__main__':
     main()
