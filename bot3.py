@@ -1,61 +1,41 @@
 import os
-import re
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 import yt_dlp
 from dotenv import load_dotenv
+from flask import Flask
+from threading import Thread
 
+# تحميل المتغيرات من ملف .env
 load_dotenv()
 BOT_TOKEN = os.getenv('BOT_TOKEN')
 
-# تأكد من وجود مجلد downloads
+# إنشاء تطبيق Flask
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "بوت LoadKing شغال تمام"
+
+# دالة لتشغيل Flask في Thread منفصل
+def run_flask():
+    app.run(host="0.0.0.0", port=10000)
+
+# إنشاء مجلد التنزيلات لو ما كان موجود
 if not os.path.isdir('downloads'):
     os.makedirs('downloads')
 
-# تحديد نوع المنصة من الرابط
-def get_platform(url):
-    if "tiktok.com" in url:
-        return "TikTok"
-    elif "youtube.com" in url or "youtu.be" in url:
-        return "YouTube"
-    elif "twitter.com" in url or "x.com" in url:
-        return "Twitter"
-    elif "instagram.com" in url:
-        return "Instagram"
-    else:
-        return "رابط غير معروف"
-
 # أمر /start
 async def start(update: Update, context):
-    await update.message.reply_text(
-        "مرحبًا! أنا بوت تحميل الفيديوهات.\n"
-        "أرسل لي رابط من YouTube، TikTok، Twitter أو Instagram لتحميله.\n"
-        "استخدم /help لمزيد من المعلومات."
-    )
+    await update.message.reply_text("مرحبًا! أنا بوت التحميل. أرسل لي رابط الفيديو لتحميله.")
 
-# أمر /help
-async def help_command(update: Update, context):
-    await update.message.reply_text(
-        "البوت يدعم حالياً:\n"
-        "- YouTube (بعض المقاطع تحتاج تسجيل دخول)\n"
-        "- TikTok\n"
-        "- Twitter / X\n"
-        "- Instagram\n\n"
-        "أرسل الرابط فقط، والبوت يحمله لك."
-    )
-
-# تحميل الفيديو
+# تحميل الفيديوهات
 async def download_video(update: Update, context):
     url = update.message.text.strip()
-    platform = get_platform(url)
-
-    await update.message.reply_text(f"جاري تحميل الفيديو من {platform}...")
+    await update.message.reply_text("جاري تحميل الفيديو...")
 
     ydl_opts = {
         'outtmpl': 'downloads/%(title)s.%(ext)s',
-        'format': 'bestvideo+bestaudio/best',
-        'merge_output_format': 'mp4',
-        'noplaylist': True
     }
 
     try:
@@ -63,21 +43,20 @@ async def download_video(update: Update, context):
             info_dict = ydl.extract_info(url, download=True)
             video_path = ydl.prepare_filename(info_dict)
 
-        # رفع كملف document عشان مقاطع كثيرة تكون كبيرة
         with open(video_path, 'rb') as video_file:
-            await update.message.reply_document(video_file)
+            await update.message.reply_video(video_file)
     except Exception as e:
-        await update.message.reply_text(f"حدث خطأ أثناء التحميل:\n{e}")
+        await update.message.reply_text(f"حدث خطأ أثناء التحميل: {e}")
 
-# تشغيل البوت
 def main():
-    app = Application.builder().token(BOT_TOKEN).build()
+    # تشغيل Flask في Thread منفصل عشان ما يوقف البوت
+    Thread(target=run_flask).start()
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("help", help_command))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, download_video))
-
-    app.run_polling()
+    # إعداد بوت التليجرام
+    application = Application.builder().token(BOT_TOKEN).build()
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, download_video))
+    application.run_polling()
 
 if __name__ == '__main__':
     main()
