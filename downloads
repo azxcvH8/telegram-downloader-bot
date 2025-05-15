@@ -1,2 +1,0 @@
-import pathlib
-pathlib.Path('downloads').mkdir(parents=True, exist_ok=True)
