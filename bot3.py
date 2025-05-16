@@ -19,7 +19,9 @@ def home():
 
 # دالة لتشغيل Flask في Thread منفصل
 def run_flask():
-    app.run(host="0.0.0.0", port=10000)
+    # نستخدم البورت اللي يعطينا إياه Render أو نرجع لـ 10000 إذا ما لقيناه
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
 
 # إنشاء مجلد التنزيلات لو ما كان موجود
 if not os.path.isdir('downloads'):
