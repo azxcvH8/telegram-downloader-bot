@@ -30,6 +30,9 @@ download_count = 0
 # كاش مؤقت
 cache = {}
 
+# تخزين روابط المستخدمين مؤقتًا
+user_links = {}
+
 # رسالة الترحيب
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("حيّاااك! يالذيب عطِـني رابطك وخلّي التحميل على\n\nنظام VIP: قريبًا")
@@ -40,14 +43,17 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"عدد المستخدمين: {len(user_count)}\nعدد التحميلات: {download_count}\nنظام VIP: قريبًا"
     )
 
-# دالة للرد على الأزرار
+# دالة الرد على الأزرار
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global user_links
     query = update.callback_query
     await query.answer()
-    url = query.message.reply_to_message.text if query.message.reply_to_message else query.message.text
 
-    if not url.startswith("http"):
-        await query.message.reply_text("الرابط هذا شكله خربان أو مو مدعوم حاليًا. تأكد منه أو جرب غيره")
+    user_id = query.from_user.id
+    url = user_links.get(user_id)
+
+    if not url or not url.startswith("http"):
+        await query.message.reply_text("ما لقيت الرابط الأصلي. حاول ترسله من جديد.")
         return
 
     if query.data == "video":
@@ -59,7 +65,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # فلترة الرسائل والرد بالأزرار
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    global user_count
+    global user_count, user_links
     user_id = update.effective_user.id
     user_count.add(user_id)
 
@@ -73,6 +79,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("جاري تحميل الصورة...")
         # مكان لإضافة كود تحميل صور TikTok مستقبلاً
         return
+
+    # نخزن الرابط للمستخدم
+    user_links[user_id] = url
 
     await update.message.reply_text(
         "وش تبي أسوي بالرابط؟",
@@ -138,6 +147,7 @@ async def download_and_send(update: Update, context: ContextTypes.DEFAULT_TYPE, 
         else:
             await update.callback_query.message.reply_text(f"صار فيه خطأ أثناء التحميل:\n\n{error_msg}")
 
+# الدالة الرئيسية
 def main():
     Thread(target=run_flask).start()
     application = Application.builder().token(BOT_TOKEN).build()
