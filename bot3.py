@@ -44,7 +44,11 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    url = query.message.text
+    url = query.message.reply_to_message.text if query.message.reply_to_message else query.message.text
+
+    if not url.startswith("http"):
+        await query.message.reply_text("الرابط هذا شكله خربان أو مو مدعوم حاليًا. تأكد منه أو جرب غيره")
+        return
 
     if query.data == "video":
         await download_and_send(update, context, url, mode="video")
@@ -53,7 +57,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == "high":
         await download_and_send(update, context, url, mode="high")
 
-# الفلتر والكاش وتنزيل الفيديو
+# فلترة الرسائل والرد بالأزرار
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global user_count
     user_id = update.effective_user.id
@@ -65,23 +69,24 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("الرابط هذا شكله خربان أو مو مدعوم حاليًا. تأكد منه أو جرب غيره")
         return
 
-    # كشف صور TikTok
     if "tiktok.com/" in url and "/photo/" in url:
         await update.message.reply_text("جاري تحميل الصورة...")
-    else:
-        await update.message.reply_text(
-            "وش تبي أسوي بالرابط؟",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("تحميل كفيديو", callback_data="video")],
-                [InlineKeyboardButton("تحميل كموسيقى", callback_data="audio")],
-                [InlineKeyboardButton("جودة عالية", callback_data="high")],
-            ])
-        )
+        # مكان لإضافة كود تحميل صور TikTok مستقبلاً
+        return
 
+    await update.message.reply_text(
+        "وش تبي أسوي بالرابط؟",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("تحميل كفيديو", callback_data="video")],
+            [InlineKeyboardButton("تحميل كموسيقى", callback_data="audio")],
+            [InlineKeyboardButton("جودة عالية", callback_data="high")],
+        ])
+    )
+
+# التحميل والإرسال حسب الطلب
 async def download_and_send(update: Update, context: ContextTypes.DEFAULT_TYPE, url: str, mode: str):
     global download_count
 
-    # كاش
     if url in cache:
         with open(cache[url], 'rb') as f:
             await update.callback_query.message.reply_document(f)
@@ -127,10 +132,11 @@ async def download_and_send(update: Update, context: ContextTypes.DEFAULT_TYPE, 
         cache[url] = file_path
 
     except Exception as e:
-        if "status code 10235" in str(e):
+        error_msg = str(e)
+        if "status code 10235" in error_msg:
             await update.callback_query.message.reply_text("المقطع خاص، محذوف، أو يحتاج تسجيل دخول.")
         else:
-            await update.callback_query.message.reply_text(f"صار فيه خطأ: {e}")
+            await update.callback_query.message.reply_text(f"صار فيه خطأ أثناء التحميل:\n\n{error_msg}")
 
 def main():
     Thread(target=run_flask).start()
