@@ -10,10 +10,10 @@ from threading import Thread
 load_dotenv()
 BOT_TOKEN = os.getenv('BOT_TOKEN')
 
-# إعداد الفلوج
+# تسجيل الدخول
 logging.basicConfig(level=logging.INFO)
 
-# Flask للسيرفر الخارجي
+# سيرفر Flask
 app = Flask(__name__)
 @app.route('/')
 def home():
@@ -23,38 +23,28 @@ def run_flask():
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
 
-# إحصائيات بسيطة
+# الإحصائيات
 user_count = set()
 download_count = 0
 
-# كاش مؤقت
+# الكاش
 cache = {}
 
-# تخزين روابط المستخدمين مؤقتًا
-user_links = {}
-
-# رسالة الترحيب
+# /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("حيّاااك! يالذيب عطِـني رابطك وخلّي التحميل على\n\nنظام VIP: قريبًا")
 
-# أمر /stats لعرض عدد المستخدمين والتحميلات
+# /stats
 async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f"عدد المستخدمين: {len(user_count)}\nعدد التحميلات: {download_count}\nنظام VIP: قريبًا"
     )
 
-# دالة الرد على الأزرار
+# الأزرار
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    global user_links
     query = update.callback_query
     await query.answer()
-
-    user_id = query.from_user.id
-    url = user_links.get(user_id)
-
-    if not url or not url.startswith("http"):
-        await query.message.reply_text("ما لقيت الرابط الأصلي. حاول ترسله من جديد.")
-        return
+    url = query.message.text
 
     if query.data == "video":
         await download_and_send(update, context, url, mode="video")
@@ -63,9 +53,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == "high":
         await download_and_send(update, context, url, mode="high")
 
-# فلترة الرسائل والرد بالأزرار
+# الرسائل
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    global user_count, user_links
+    global user_count
     user_id = update.effective_user.id
     user_count.add(user_id)
 
@@ -77,11 +67,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if "tiktok.com/" in url and "/photo/" in url:
         await update.message.reply_text("جاري تحميل الصورة...")
-        # مكان لإضافة كود تحميل صور TikTok مستقبلاً
+        await download_and_send(update, context, url, mode="photo")
         return
-
-    # نخزن الرابط للمستخدم
-    user_links[user_id] = url
 
     await update.message.reply_text(
         "وش تبي أسوي بالرابط؟",
@@ -92,7 +79,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ])
     )
 
-# التحميل والإرسال حسب الطلب
+# التنزيل والإرسال
 async def download_and_send(update: Update, context: ContextTypes.DEFAULT_TYPE, url: str, mode: str):
     global download_count
 
@@ -101,7 +88,8 @@ async def download_and_send(update: Update, context: ContextTypes.DEFAULT_TYPE, 
             await update.callback_query.message.reply_document(f)
         return
 
-    await update.callback_query.message.reply_text("أجهز لك الرابط، خلك قريب...")
+    if mode != "photo":
+        await update.callback_query.message.reply_text("أجهز لك الرابط، خلك قريب...")
 
     file_format = "best"
     postprocess = []
@@ -115,6 +103,8 @@ async def download_and_send(update: Update, context: ContextTypes.DEFAULT_TYPE, 
         }]
     elif mode == "high":
         file_format = "bestvideo[height<=1080]+bestaudio/best"
+    elif mode == "photo":
+        file_format = "bestaudio/best"
 
     ydl_opts = {
         'outtmpl': 'downloads/%(title)s.%(ext)s',
@@ -127,7 +117,6 @@ async def download_and_send(update: Update, context: ContextTypes.DEFAULT_TYPE, 
             info = ydl.extract_info(url, download=True)
             file_path = ydl.prepare_filename(info)
 
-        # ضغط إذا الملف كبير
         if os.path.getsize(file_path) > 45 * 1024 * 1024:
             await update.callback_query.message.reply_text("الفيديو كبير شوي، بجرب أضغطه لك...")
             compressed_path = "downloads/compressed.mp4"
@@ -135,19 +124,22 @@ async def download_and_send(update: Update, context: ContextTypes.DEFAULT_TYPE, 
             file_path = compressed_path
 
         with open(file_path, 'rb') as f:
-            await update.callback_query.message.reply_document(f)
+            if mode == "photo":
+                await update.message.reply_photo(f)
+            else:
+                await update.callback_query.message.reply_document(f)
 
         download_count += 1
         cache[url] = file_path
 
     except Exception as e:
-        error_msg = str(e)
-        if "status code 10235" in error_msg:
-            await update.callback_query.message.reply_text("المقطع خاص، محذوف، أو يحتاج تسجيل دخول.")
+        msg = str(e)
+        if "status code 10235" in msg or "Video not available" in msg:
+            await update.message.reply_text("المقطع خاص، محذوف، أو يحتاج تسجيل دخول.")
         else:
-            await update.callback_query.message.reply_text(f"صار فيه خطأ أثناء التحميل:\n\n{error_msg}")
+            await update.message.reply_text(f"صار فيه خطأ أثناء التحميل:\n\n{e}")
 
-# الدالة الرئيسية
+# تشغيل البوت
 def main():
     Thread(target=run_flask).start()
     application = Application.builder().token(BOT_TOKEN).build()
