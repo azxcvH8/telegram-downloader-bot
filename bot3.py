@@ -7,26 +7,21 @@ from dotenv import load_dotenv
 from flask import Flask
 from threading import Thread
 
-# تحميل متغيرات البيئة
 load_dotenv()
 BOT_TOKEN = os.getenv('BOT_TOKEN')
 
-# إعداد تسجيل الدخول
+# إعداد الفلوج
 logging.basicConfig(level=logging.INFO)
 
-# إعداد تطبيق Flask
+# Flask للسيرفر الخارجي
 app = Flask(__name__)
 @app.route('/')
 def home():
-    return "البوت شغال تمام!"
+    return "البوت شغّال تمام"
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
-
-# إعداد مجلد التحميل
-if not os.path.exists('downloads'):
-    os.makedirs('downloads')
 
 # إحصائيات بسيطة
 user_count = set()
@@ -35,26 +30,25 @@ download_count = 0
 # كاش مؤقت
 cache = {}
 
-# بدء البوت
+# رسالة الترحيب
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("حيّاك! عطِـني رابطك وخلّي التحميل علي.\n\nنظام VIP: قريبًا")
+    await update.message.reply_text("حيّاااك! يالذيب عطِـني رابطك وخلّي التحميل على\n\nنظام VIP: قريبًا")
 
-# إحصائيات
+# أمر /stats لعرض عدد المستخدمين والتحميلات
 async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f"عدد المستخدمين: {len(user_count)}\nعدد التحميلات: {download_count}\nنظام VIP: قريبًا"
     )
 
-# زر التحميل
+# دالة للرد على الأزرار
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+    url = query.message.reply_to_message.text if query.message.reply_to_message else query.message.text
 
-    if not query.message or not query.message.text or not query.message.text.startswith("http"):
-        await query.message.reply_text("ما حصلت رابط أتعامل معه.")
+    if not url.startswith("http"):
+        await query.message.reply_text("الرابط هذا شكله خربان أو مو مدعوم حاليًا. تأكد منه أو جرب غيره")
         return
-
-    url = query.message.text
 
     if query.data == "video":
         await download_and_send(update, context, url, mode="video")
@@ -63,89 +57,99 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == "high":
         await download_and_send(update, context, url, mode="high")
 
-# الرد على الرسائل
+# فلترة الرسائل والرد بالأزرار
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global user_count
     user_id = update.effective_user.id
     user_count.add(user_id)
 
-    if not update.message or not update.message.text:
-        return
-
     url = update.message.text.strip()
 
     if not url.startswith("http"):
-        await update.message.reply_text("الرابط هذا شكله خربان أو مو مدعوم حاليًا.")
+        await update.message.reply_text("الرابط هذا شكله خربان أو مو مدعوم حاليًا. تأكد منه أو جرب غيره")
         return
 
-    # صورة TikTok
     if "tiktok.com/" in url and "/photo/" in url:
         await update.message.reply_text("جاري تحميل الصورة...")
-        await download_and_send(update, context, url, mode="photo")
+        # مكان لإضافة كود تحميل صور TikTok مستقبلاً
         return
 
-    # فيديوهات
-    keyboard = [
-        [InlineKeyboardButton("تحميل فيديو", callback_data="video")],
-        [InlineKeyboardButton("تحميل موسيقى", callback_data="audio")],
-        [InlineKeyboardButton("جودة عالية", callback_data="high")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("وش تبي أسوي بالرابط؟", reply_markup=reply_markup)
+    await update.message.reply_text(
+        "وش تبي أسوي بالرابط؟",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("تحميل كفيديو", callback_data="video")],
+            [InlineKeyboardButton("تحميل كموسيقى", callback_data="audio")],
+            [InlineKeyboardButton("جودة عالية", callback_data="high")],
+        ])
+    )
 
-# تحميل الملف
-async def download_and_send(update: Update, context: ContextTypes.DEFAULT_TYPE, url: str, mode="video"):
+# التحميل والإرسال حسب الطلب
+async def download_and_send(update: Update, context: ContextTypes.DEFAULT_TYPE, url: str, mode: str):
     global download_count
 
-    ydl_opts = {
-        'outtmpl': 'downloads/%(title)s.%(ext)s',
-        'quiet': True,
-        'nocheckcertificate': True,
-    }
+    if url in cache:
+        with open(cache[url], 'rb') as f:
+            await update.callback_query.message.reply_document(f)
+        return
+
+    await update.callback_query.message.reply_text("أجهز لك الرابط، خلك قريب...")
+
+    file_format = "best"
+    postprocess = []
 
     if mode == "audio":
-        ydl_opts['format'] = 'bestaudio/best'
-        ydl_opts['postprocessors'] = [{
+        file_format = "bestaudio"
+        postprocess = [{
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'mp3',
             'preferredquality': '192',
         }]
     elif mode == "high":
-        ydl_opts['format'] = 'bestvideo+bestaudio/best'
-    elif mode == "photo":
-        ydl_opts['format'] = 'best'
+        file_format = "bestvideo[height<=1080]+bestaudio/best"
+
+    ydl_opts = {
+        'outtmpl': 'downloads/%(title)s.%(ext)s',
+        'format': file_format,
+        'postprocessors': postprocess,
+    }
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
             file_path = ydl.prepare_filename(info)
-            if mode == "audio":
-                file_path = os.path.splitext(file_path)[0] + ".mp3"
+
+        # ضغط إذا الملف كبير
+        if os.path.getsize(file_path) > 45 * 1024 * 1024:
+            await update.callback_query.message.reply_text("الفيديو كبير شوي، بجرب أضغطه لك...")
+            compressed_path = "downloads/compressed.mp4"
+            os.system(f"ffmpeg -i \"{file_path}\" -vcodec libx264 -crf 28 \"{compressed_path}\"")
+            file_path = compressed_path
+
+        with open(file_path, 'rb') as f:
+            await update.callback_query.message.reply_document(f)
 
         download_count += 1
-        if mode == "audio":
-            await update.effective_message.reply_audio(audio=open(file_path, 'rb'))
-        elif file_path.endswith(".jpg") or file_path.endswith(".png") or mode == "photo":
-            await update.effective_message.reply_photo(photo=open(file_path, 'rb'))
-        else:
-            await update.effective_message.reply_document(document=open(file_path, 'rb'))
+        cache[url] = file_path
 
-        os.remove(file_path)
     except Exception as e:
-        await update.effective_message.reply_text(f"صار فيه خطأ أثناء التحميل:\n\n{e}")
+        error_msg = str(e)
+        if "status code 10235" in error_msg:
+            await update.callback_query.message.reply_text("المقطع خاص، محذوف، أو يحتاج تسجيل دخول.")
+        else:
+            await update.callback_query.message.reply_text(f"صار فيه خطأ أثناء التحميل:\n\n{error_msg}")
 
-# تشغيل التطبيق
 def main():
+    Thread(target=run_flask).start()
     application = Application.builder().token(BOT_TOKEN).build()
+
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("stats", stats))
     application.add_handler(CallbackQueryHandler(button_handler))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    # تشغيل Flask في ثريد منفصل
-    Thread(target=run_flask).start()
-
-    # تشغيل البوت
     application.run_polling()
 
-main()
+if __name__ == "__main__":
+    if not os.path.isdir('downloads'):
+        os.makedirs('downloads')
+    main()
