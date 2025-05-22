@@ -10,10 +10,10 @@ from threading import Thread
 load_dotenv()
 BOT_TOKEN = os.getenv('BOT_TOKEN')
 
-# إعداد الفلوج
+# إعداد اللوق
 logging.basicConfig(level=logging.INFO)
 
-# Flask للسيرفر الخارجي
+# سيرفر Flask
 app = Flask(__name__)
 @app.route('/')
 def home():
@@ -23,32 +23,26 @@ def run_flask():
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
 
-# إحصائيات بسيطة
+# إحصائيات
 user_count = set()
 download_count = 0
-
-# كاش مؤقت
 cache = {}
 
-# رسالة الترحيب
+# أمر /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("حيّاااك! يالذيب عطِـني رابطك وخلّي التحميل على\n\nنظام VIP: قريبًا")
+    await update.message.reply_text("حيّاااك! عطِـني رابطك وخلّي التحميل علي\n\nنظام VIP: قريبًا")
 
-# أمر /stats لعرض عدد المستخدمين والتحميلات
+# أمر /stats
 async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f"عدد المستخدمين: {len(user_count)}\nعدد التحميلات: {download_count}\nنظام VIP: قريبًا"
     )
 
-# دالة للرد على الأزرار
+# الرد على الأزرار
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     url = query.message.reply_to_message.text if query.message.reply_to_message else query.message.text
-
-    if not url.startswith("http"):
-        await query.message.reply_text("الرابط هذا شكله خربان أو مو مدعوم حاليًا. تأكد منه أو جرب غيره")
-        return
 
     if query.data == "video":
         await download_and_send(update, context, url, mode="video")
@@ -57,21 +51,16 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == "high":
         await download_and_send(update, context, url, mode="high")
 
-# فلترة الرسائل والرد بالأزرار
+# استقبال الرسائل
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global user_count
     user_id = update.effective_user.id
     user_count.add(user_id)
 
-    url = update.message.text.strip()
-
-    if not url.startswith("http"):
-        await update.message.reply_text("الرابط هذا شكله خربان أو مو مدعوم حاليًا. تأكد منه أو جرب غيره")
-        return
+    url = update.message.text.strip().split()[0]
 
     if "tiktok.com/" in url and "/photo/" in url:
-        await update.message.reply_text("جاري تحميل الصورة...")
-        # مكان لإضافة كود تحميل صور TikTok مستقبلاً
+        await update.message.reply_text("جاري تحميل الصورة...\n\nنظام VIP: قريبًا")
         return
 
     await update.message.reply_text(
@@ -83,7 +72,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ])
     )
 
-# التحميل والإرسال حسب الطلب
+# تحميل الرابط حسب الطلب
 async def download_and_send(update: Update, context: ContextTypes.DEFAULT_TYPE, url: str, mode: str):
     global download_count
 
@@ -111,6 +100,7 @@ async def download_and_send(update: Update, context: ContextTypes.DEFAULT_TYPE, 
         'outtmpl': 'downloads/%(title)s.%(ext)s',
         'format': file_format,
         'postprocessors': postprocess,
+        'quiet': True
     }
 
     try:
@@ -118,7 +108,6 @@ async def download_and_send(update: Update, context: ContextTypes.DEFAULT_TYPE, 
             info = ydl.extract_info(url, download=True)
             file_path = ydl.prepare_filename(info)
 
-        # ضغط إذا الملف كبير
         if os.path.getsize(file_path) > 45 * 1024 * 1024:
             await update.callback_query.message.reply_text("الفيديو كبير شوي، بجرب أضغطه لك...")
             compressed_path = "downloads/compressed.mp4"
